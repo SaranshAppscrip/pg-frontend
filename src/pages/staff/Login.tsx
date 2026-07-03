@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { isApiConfigured, ORG_ID_KEY } from '../../lib/api';
 
 const DEFAULT_ORG_ID = '00000000-0000-0000-0000-000000000001';
 
 export default function StaffLogin() {
-  const { signInStaff } = useAuth();
+  const { signInStaff, isStaff } = useAuth();
   const [organizationId, setOrganizationId] = useState(
     () => localStorage.getItem(ORG_ID_KEY) || DEFAULT_ORG_ID
   );
@@ -23,6 +23,8 @@ export default function StaffLogin() {
     setLoading(false);
     if (err) setError(err);
   }
+
+  if (isStaff) return <Navigate to="/" replace />;
 
   if (!isApiConfigured) {
     return (
