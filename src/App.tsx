@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { BusinessProvider } from './contexts/BusinessContext';
 import StaffLogin from './pages/staff/Login';
+import ForgotPassword from './pages/staff/ForgotPassword';
+import ResetPassword from './pages/staff/ResetPassword';
 import Dashboard from './pages/staff/Dashboard';
 import RoomsTenants from './pages/staff/RoomsTenants';
 import Payments from './pages/staff/Payments';
@@ -28,6 +30,8 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<StaffLogin />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/tenant/login" element={<TenantLogin />} />
       <Route path="/tenant" element={<TenantPortal />} />
 

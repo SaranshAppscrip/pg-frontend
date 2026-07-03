@@ -95,6 +95,20 @@ export const authApi = {
 
   tenantMe: () =>
     request<TenantUser>('/auth/tenant/me', { auth: 'tenant' }),
+
+  staffForgotPassword: (organizationId: string, email: string) =>
+    request<{ message: string }>('/auth/staff/forgot-password', {
+      method: 'POST',
+      auth: 'none',
+      body: JSON.stringify({ organization_id: organizationId, email }),
+    }),
+
+  staffResetPassword: (token: string, password: string) =>
+    request<{ message: string }>('/auth/staff/reset-password', {
+      method: 'POST',
+      auth: 'none',
+      body: JSON.stringify({ token, password }),
+    }),
 };
 
 // ── Settings ────────────────────────────────────────────────────────────────

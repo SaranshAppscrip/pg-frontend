@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { staffApi } from '../../lib/api';
+import { useAuth } from '../../contexts/AuthContext';
 import { useBusiness } from '../../contexts/BusinessContext';
 import { StaffLayout } from '../../components/Layout';
 import { ConfirmDialog } from '../../components/Modal';
@@ -8,6 +9,7 @@ import { PageHeader } from '../../components/ui';
 import type { StaffProfile } from '../../types/database';
 
 export default function Settings() {
+  const { staffUser } = useAuth();
   const { pgName, updatePgName } = useBusiness();
   const [staff, setStaff] = useState<StaffProfile[]>([]);
   const [name, setName] = useState(pgName);
@@ -53,7 +55,9 @@ export default function Settings() {
     setSuccess('');
     try {
       await staffApi.invite(inviteEmail.trim(), invitePassword);
-      setSuccess(`Invitation sent to ${inviteEmail}. They can sign in once confirmed.`);
+      setSuccess(
+        `Invitation email sent to ${inviteEmail.trim()}. They will receive the login link, organization ID, and temporary password. After first sign-in, they should use Forgot password to set their own password.`
+      );
       setInviteEmail('');
       setInvitePassword('');
       loadStaff();
@@ -119,12 +123,34 @@ export default function Settings() {
             </div>
           )}
 
-          <h3 className="text-sm font-medium text-ink mb-3">Invite Staff</h3>
+          <h3 className="text-sm font-medium text-ink mb-1">Invite Staff</h3>
+          <p className="text-ink-soft text-xs mb-3">
+            An invitation email is sent with the staff login link, organization ID, email, and the
+            temporary password you set below. New staff should sign in, then use{' '}
+            <span className="text-ink">Forgot password</span> on the login page to choose their own password.
+          </p>
+          {staffUser?.organization_id && (
+            <div className="mb-3">
+              <label className="label">Organization ID (included in invite email)</label>
+              <input
+                className="input font-mono text-sm"
+                type="text"
+                readOnly
+                value={staffUser.organization_id}
+              />
+            </div>
+          )}
           <form onSubmit={handleInvite} className="space-y-3">
-            <input className="input" type="email" required placeholder="Email"
-              value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
-            <input className="input" type="password" required placeholder="Temporary password" minLength={6}
-              value={invitePassword} onChange={(e) => setInvitePassword(e.target.value)} />
+            <div>
+              <label className="label">Email</label>
+              <input className="input" type="email" required placeholder="staff@example.com"
+                value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Temporary password</label>
+              <input className="input" type="password" required placeholder="Min. 6 characters" minLength={6}
+                value={invitePassword} onChange={(e) => setInvitePassword(e.target.value)} />
+            </div>
             <button type="submit" className="btn-secondary w-full" disabled={saving}>
               Send Invite
             </button>

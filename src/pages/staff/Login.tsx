@@ -47,6 +47,10 @@ export default function StaffLogin() {
         <div className="text-center mb-8">
           <h1 className="font-serif text-3xl font-semibold text-rose">Nivas</h1>
           <p className="text-ink-soft text-sm mt-1">Staff Portal</p>
+          <p className="text-ink-soft text-xs mt-3 max-w-sm mx-auto">
+            Invited by email? Sign in with your organization ID, email, and temporary password.
+            Then use Forgot password to set a new password.
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -75,6 +79,11 @@ export default function StaffLogin() {
           <button type="submit" className="btn-primary w-full" disabled={loading}>
             {loading ? 'Please wait…' : 'Sign In'}
           </button>
+          <p className="text-center">
+            <Link to="/forgot-password" className="text-sm text-ink-soft hover:text-rose">
+              Forgot password?
+            </Link>
+          </p>
         </form>
 
         <div className="mt-6 pt-6 border-t border-border text-center">
