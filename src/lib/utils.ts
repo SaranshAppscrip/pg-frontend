@@ -17,6 +17,14 @@ export function formatDate(dateStr: string): string {
   }
 }
 
+export function formatDateTime(dateStr: string): string {
+  try {
+    return format(parseISO(dateStr), 'dd MMM yyyy, h:mm a');
+  } catch {
+    return dateStr;
+  }
+}
+
 export function currentMonth(): string {
   return format(new Date(), 'yyyy-MM');
 }

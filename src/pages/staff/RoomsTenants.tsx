@@ -1,15 +1,21 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
-import { roomsApi, tenantsApi, paymentsApi } from '../../lib/api';
+import { Plus, Trash2, FileText } from 'lucide-react';
+import { roomsApi, tenantsApi, paymentsApi, exportApi } from '../../lib/api';
 import { currentMonth, formatCurrency, formatDate, getPaymentStatus } from '../../lib/utils';
 import { StaffLayout } from '../../components/Layout';
 import { Modal, ConfirmDialog } from '../../components/Modal';
 import { PaymentStatusBadge } from '../../components/StatusBadge';
 import { PageHeader, EmptyState } from '../../components/ui';
+import { ExportMenu } from '../../components/ExportMenu';
+import { TenantDocumentsModal } from '../../components/TenantDocumentsModal';
+import { PropertyFilterBanner } from '../../components/PropertyFilterBanner';
+import { Banner } from '../../components/Banner';
+import { useProperty } from '../../contexts/PropertyContext';
 import { PAYMENT_MODES } from '../../types/database';
 import type { Room, Tenant, Payment, PaymentMode } from '../../types/database';
 
 export default function RoomsTenants() {
+  const { properties, selectedPropertyId, selectedProperty } = useProperty();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -20,8 +26,9 @@ export default function RoomsTenants() {
   const [paymentTenant, setPaymentTenant] = useState<Tenant | null>(null);
   const [moveOutTenant, setMoveOutTenant] = useState<Tenant | null>(null);
   const [removeRoom, setRemoveRoom] = useState<Room | null>(null);
+  const [docsTenant, setDocsTenant] = useState<Tenant | null>(null);
 
-  const [roomForm, setRoomForm] = useState({ room_number: '', capacity: '2' });
+  const [roomForm, setRoomForm] = useState({ property_id: '', room_number: '', capacity: '2' });
   const [tenantForm, setTenantForm] = useState({
     name: '', email: '', password: '', phone: '', monthly_fee: '', join_date: new Date().toISOString().slice(0, 10),
   });
@@ -32,16 +39,22 @@ export default function RoomsTenants() {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [exportMsg, setExportMsg] = useState('');
 
-  useEffect(() => { loadData(); }, []);
+  function propertyName(propertyId: string) {
+    return properties.find((p) => p.id === propertyId)?.name;
+  }
+
+  useEffect(() => { loadData(); }, [selectedPropertyId]);
 
   async function loadData() {
     setLoading(true);
     try {
       const [r, t, p] = await Promise.all([
-        roomsApi.list(),
-        tenantsApi.list(),
-        paymentsApi.list(),
+        roomsApi.list(selectedPropertyId),
+        tenantsApi.list(selectedPropertyId),
+        paymentsApi.list(selectedPropertyId),
       ]);
       setRooms(r);
       setTenants(t);
@@ -54,15 +67,21 @@ export default function RoomsTenants() {
 
   async function handleAddRoom(e: React.FormEvent) {
     e.preventDefault();
+    const propertyId = selectedPropertyId ?? roomForm.property_id;
+    if (!propertyId) {
+      setError('Select a property for this room');
+      return;
+    }
     setSubmitting(true);
     setError('');
     try {
       await roomsApi.create({
+        property_id: propertyId,
         room_number: roomForm.room_number.trim(),
         capacity: parseInt(roomForm.capacity, 10),
       });
       setAddRoomOpen(false);
-      setRoomForm({ room_number: '', capacity: '2' });
+      setRoomForm({ property_id: selectedPropertyId ?? '', room_number: '', capacity: '2' });
       loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add room');
@@ -109,6 +128,7 @@ export default function RoomsTenants() {
       });
       setPaymentTenant(null);
       setPaymentForm({ amount: '', date: new Date().toISOString().slice(0, 10), for_month: currentMonth(), mode: 'Cash' });
+      setSuccess('Payment recorded. Receipt emailed to tenant with PDF attachment.');
       loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to record payment');
@@ -154,12 +174,37 @@ export default function RoomsTenants() {
     <StaffLayout>
       <PageHeader
         title="Rooms & Tenants"
+        subtitle={selectedProperty ? selectedProperty.name : undefined}
         action={
-          <button className="btn-primary" onClick={() => setAddRoomOpen(true)}>
-            <Plus size={18} /> Add Room
-          </button>
+          <div className="flex gap-2">
+            <ExportMenu
+              onExport={(format) => exportApi.tenants(format, selectedPropertyId)}
+              onSuccess={(format) => setExportMsg(`Exported tenants as ${format.toUpperCase()}.`)}
+              onError={(err) => setError(err.message)}
+            />
+            <button
+              className="btn-primary"
+              onClick={() => {
+                setRoomForm({
+                  property_id: selectedPropertyId ?? '',
+                  room_number: '',
+                  capacity: '2',
+                });
+                setAddRoomOpen(true);
+              }}
+            >
+              <Plus size={18} /> Add Room
+            </button>
+          </div>
         }
       />
+
+      <PropertyFilterBanner />
+      {success && <Banner message={success} variant="success" onDismiss={() => setSuccess('')} />}
+      {exportMsg && <Banner message={exportMsg} variant="info" onDismiss={() => setExportMsg('')} />}
+      {error && !addRoomOpen && !addTenantRoomId && !paymentTenant && (
+        <Banner message={error} variant="error" onDismiss={() => setError('')} />
+      )}
 
       {sortedRooms.length === 0 ? (
         <EmptyState message="No rooms yet. Click + Add Room to get started." />
@@ -177,6 +222,9 @@ export default function RoomsTenants() {
                       Room {room.room_number}
                     </h2>
                     <p className="text-xs text-ink-soft">
+                      {!selectedPropertyId && propertyName(room.property_id) && (
+                        <span className="text-rose mr-2">{propertyName(room.property_id)}</span>
+                      )}
                       {occupants.length}/{room.capacity} occupied
                     </p>
                   </div>
@@ -229,6 +277,10 @@ export default function RoomsTenants() {
                               </td>
                               <td className="px-5 py-3 text-ink-soft">{formatDate(tenant.join_date)}</td>
                               <td className="px-5 py-3 text-right space-x-2">
+                                <button className="btn-ghost text-xs" onClick={() => setDocsTenant(tenant)}>
+                                  <FileText size={14} className="inline mr-1" />
+                                  Documents
+                                </button>
                                 <button className="btn-ghost text-xs" onClick={() => {
                                   setPaymentTenant(tenant);
                                   setPaymentForm((f) => ({ ...f, amount: String(tenant.monthly_fee) }));
@@ -254,6 +306,22 @@ export default function RoomsTenants() {
 
       <Modal open={addRoomOpen} onClose={() => setAddRoomOpen(false)} title="Add Room">
         <form onSubmit={handleAddRoom} className="space-y-4">
+          {!selectedPropertyId && (
+            <div>
+              <label className="label">Property</label>
+              <select
+                className="input"
+                required
+                value={roomForm.property_id}
+                onChange={(e) => setRoomForm({ ...roomForm, property_id: e.target.value })}
+              >
+                <option value="">Select property…</option>
+                {properties.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <label className="label">Room number</label>
             <input className="input" required value={roomForm.room_number}
@@ -343,6 +411,8 @@ export default function RoomsTenants() {
           </form>
         )}
       </Modal>
+
+      <TenantDocumentsModal tenant={docsTenant} onClose={() => setDocsTenant(null)} />
 
       <ConfirmDialog
         open={!!moveOutTenant}

@@ -2,9 +2,13 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import {
   authApi,
   STAFF_TOKEN_KEY,
+  STAFF_REFRESH_TOKEN_KEY,
   TENANT_TOKEN_KEY,
+  TENANT_REFRESH_TOKEN_KEY,
   ORG_ID_KEY,
   isApiConfigured,
+  orgChoicesFromError,
+  type OrgChoice,
   type StaffUser,
 } from '../lib/api';
 import type { TenantProfile } from '../types/database';
@@ -15,10 +19,18 @@ interface AuthContextValue {
   isStaff: boolean;
   tenantToken: string | null;
   tenantProfile: TenantProfile | null;
-  signInStaff: (organizationId: string, email: string, password: string) => Promise<{ error: string | null }>;
+  signInStaff: (
+    email: string,
+    password: string,
+    organizationId?: string
+  ) => Promise<{ error: string | null; orgChoices?: OrgChoice[] }>;
   signOutStaff: () => Promise<void>;
-  signInTenant: (organizationId: string, email: string, password: string) => Promise<{ error: string | null }>;
-  signOutTenant: () => void;
+  signInTenant: (
+    email: string,
+    password: string,
+    organizationId?: string
+  ) => Promise<{ error: string | null; orgChoices?: OrgChoice[] }>;
+  signOutTenant: () => Promise<void>;
   refreshTenantProfile: () => Promise<void>;
 }
 
@@ -45,6 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem(ORG_ID_KEY, user.organization_id);
       } catch {
         localStorage.removeItem(STAFF_TOKEN_KEY);
+        localStorage.removeItem(STAFF_REFRESH_TOKEN_KEY);
       }
       setLoading(false);
     }
@@ -67,19 +80,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(ORG_ID_KEY, profile.organization_id);
     } catch {
       localStorage.removeItem(TENANT_TOKEN_KEY);
+      localStorage.removeItem(TENANT_REFRESH_TOKEN_KEY);
       setTenantToken(null);
       setTenantProfile(null);
     }
   }
 
-  async function signInStaff(organizationId: string, email: string, password: string) {
+  async function signInStaff(email: string, password: string, organizationId?: string) {
     try {
-      const { token, user } = await authApi.staffLogin(organizationId, email, password);
-      localStorage.setItem(STAFF_TOKEN_KEY, token);
+      const { user } = await authApi.staffLogin(email, password, organizationId);
       localStorage.setItem(ORG_ID_KEY, user.organization_id);
       setStaffUser(user);
       return { error: null };
     } catch (err) {
+      const choices = orgChoicesFromError(err);
+      if (choices) {
+        return {
+          error: err instanceof Error ? err.message : 'Select your organization',
+          orgChoices: choices,
+        };
+      }
       return { error: err instanceof Error ? err.message : 'Login failed' };
     }
   }
@@ -90,21 +110,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStaffUser(null);
   }
 
-  async function signInTenant(organizationId: string, email: string, password: string) {
+  async function signInTenant(email: string, password: string, organizationId?: string) {
     try {
-      const { token, user } = await authApi.tenantLogin(organizationId, email, password);
-      localStorage.setItem(TENANT_TOKEN_KEY, token);
+      const { user } = await authApi.tenantLogin(email, password, organizationId);
       localStorage.setItem(ORG_ID_KEY, user.organization_id);
-      setTenantToken(token);
+      setTenantToken(localStorage.getItem(TENANT_TOKEN_KEY));
       setTenantProfile(user);
       return { error: null };
     } catch (err) {
+      const choices = orgChoicesFromError(err);
+      if (choices) {
+        return {
+          error: err instanceof Error ? err.message : 'Select your organization',
+          orgChoices: choices,
+        };
+      }
       return { error: err instanceof Error ? err.message : 'Login failed' };
     }
   }
 
-  function signOutTenant() {
-    localStorage.removeItem(TENANT_TOKEN_KEY);
+  async function signOutTenant() {
+    await authApi.tenantLogout();
     setTenantToken(null);
     setTenantProfile(null);
   }

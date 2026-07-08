@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { paymentsApi, tenantsApi, roomsApi } from '../../lib/api';
+import { paymentsApi, tenantsApi, roomsApi, exportApi } from '../../lib/api';
 import { formatCurrency, formatDate, formatMonth } from '../../lib/utils';
 import { StaffLayout } from '../../components/Layout';
 import { Modal, ConfirmDialog } from '../../components/Modal';
 import { PageHeader, EmptyState } from '../../components/ui';
+import { ExportMenu } from '../../components/ExportMenu';
+import { PropertyFilterBanner } from '../../components/PropertyFilterBanner';
+import { Banner } from '../../components/Banner';
+import { useProperty } from '../../contexts/PropertyContext';
 import { PAYMENT_MODES } from '../../types/database';
 import type { Payment, Tenant, Room, PaymentMode } from '../../types/database';
 
@@ -13,6 +17,7 @@ interface PaymentRow extends Payment {
 }
 
 export default function Payments() {
+  const { selectedPropertyId, selectedProperty } = useProperty();
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [tenants, setTenants] = useState<(Tenant & { room?: Room })[]>([]);
   const [loading, setLoading] = useState(true);
@@ -20,6 +25,8 @@ export default function Payments() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [exportMsg, setExportMsg] = useState('');
 
   const [form, setForm] = useState({
     tenant_id: '',
@@ -29,15 +36,15 @@ export default function Payments() {
     mode: 'Cash' as PaymentMode,
   });
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [selectedPropertyId]);
 
   async function loadData() {
     setLoading(true);
     try {
       const [pData, tData, rData] = await Promise.all([
-        paymentsApi.list(),
-        tenantsApi.list(),
-        roomsApi.list(),
+        paymentsApi.list(selectedPropertyId),
+        tenantsApi.list(selectedPropertyId),
+        roomsApi.list(selectedPropertyId),
       ]);
       const rooms = rData;
       const tenantsWithRooms = tData
@@ -71,6 +78,7 @@ export default function Payments() {
       });
       setAddOpen(false);
       setForm({ tenant_id: '', amount: '', date: new Date().toISOString().slice(0, 10), for_month: new Date().toISOString().slice(0, 7), mode: 'Cash' });
+      setSuccess('Payment recorded. A receipt email with PDF was sent to the tenant.');
       loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to record payment');
@@ -99,12 +107,25 @@ export default function Payments() {
     <StaffLayout>
       <PageHeader
         title="Payments"
+        subtitle={selectedProperty ? selectedProperty.name : undefined}
         action={
-          <button className="btn-primary" onClick={() => setAddOpen(true)}>
-            <Plus size={18} /> Record Payment
-          </button>
+          <div className="flex gap-2">
+            <ExportMenu
+              onExport={(format) => exportApi.payments(format, selectedPropertyId)}
+              onSuccess={(format) => setExportMsg(`Exported payments as ${format.toUpperCase()}.`)}
+              onError={(err) => setError(err.message)}
+            />
+            <button className="btn-primary" onClick={() => { setSuccess(''); setAddOpen(true); }}>
+              <Plus size={18} /> Record Payment
+            </button>
+          </div>
         }
       />
+
+      <PropertyFilterBanner />
+      {success && <Banner message={success} variant="success" onDismiss={() => setSuccess('')} />}
+      {exportMsg && <Banner message={exportMsg} variant="info" onDismiss={() => setExportMsg('')} />}
+      {error && !addOpen && <Banner message={error} variant="error" onDismiss={() => setError('')} />}
 
       {payments.length === 0 ? (
         <EmptyState message="No payments recorded yet. Click + Record Payment to log one." />
@@ -182,6 +203,9 @@ export default function Payments() {
             </select>
           </div>
           {error && <p className="text-rose text-sm">{error}</p>}
+          <p className="text-xs text-ink-soft">
+            A receipt email with PDF attachment is sent to the tenant automatically.
+          </p>
           <button type="submit" className="btn-primary w-full" disabled={submitting}>
             {submitting ? 'Saving…' : 'Record Payment'}
           </button>
@@ -193,7 +217,7 @@ export default function Payments() {
         onClose={() => setDeleteId(null)}
         onConfirm={handleDelete}
         title="Delete Payment"
-        message="Are you sure you want to delete this payment record?"
+        message="This payment will be removed from totals but kept in the activity log for your records."
         confirmLabel="Delete"
         loading={submitting}
       />

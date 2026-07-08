@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { expensesApi } from '../../lib/api';
+import { expensesApi, exportApi } from '../../lib/api';
 import { currentMonth, formatCurrency, formatDate } from '../../lib/utils';
 import { StaffLayout } from '../../components/Layout';
 import { Modal, ConfirmDialog } from '../../components/Modal';
 import { PageHeader, EmptyState } from '../../components/ui';
+import { ExportMenu } from '../../components/ExportMenu';
+import { Banner } from '../../components/Banner';
 import { EXPENSE_CATEGORIES } from '../../types/database';
 import type { Expense, ExpenseCategory } from '../../types/database';
 
@@ -15,6 +17,7 @@ export default function Expenses() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [exportMsg, setExportMsg] = useState('');
 
   const [form, setForm] = useState({
     category: 'Other' as ExpenseCategory,
@@ -85,11 +88,21 @@ export default function Expenses() {
         title="Expenses"
         subtitle={`This month: ${formatCurrency(monthTotal)}`}
         action={
-          <button className="btn-primary" onClick={() => setAddOpen(true)}>
-            <Plus size={18} /> Add Expense
-          </button>
+          <div className="flex gap-2">
+            <ExportMenu
+              onExport={(format) => exportApi.expenses(format)}
+              onSuccess={(format) => setExportMsg(`Exported expenses as ${format.toUpperCase()}.`)}
+              onError={(err) => setError(err.message)}
+            />
+            <button className="btn-primary" onClick={() => setAddOpen(true)}>
+              <Plus size={18} /> Add Expense
+            </button>
+          </div>
         }
       />
+
+      {exportMsg && <Banner message={exportMsg} variant="info" onDismiss={() => setExportMsg('')} />}
+      {error && !addOpen && <Banner message={error} variant="error" onDismiss={() => setError('')} />}
 
       {expenses.length === 0 ? (
         <EmptyState message="No expenses logged yet. Click + Add Expense to record one." />
@@ -162,7 +175,7 @@ export default function Expenses() {
         onClose={() => setDeleteId(null)}
         onConfirm={handleDelete}
         title="Delete Expense"
-        message="Are you sure you want to delete this expense?"
+        message="This expense will be removed from totals but kept in the activity log for your records."
         confirmLabel="Delete"
         loading={submitting}
       />

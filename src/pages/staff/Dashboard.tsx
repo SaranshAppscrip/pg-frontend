@@ -5,29 +5,37 @@ import { StaffLayout } from '../../components/Layout';
 import { RoomMap } from '../../components/RoomMap';
 import { StatCard, PageHeader } from '../../components/ui';
 import { StockStatusBadge } from '../../components/StatusBadge';
+import { PropertyFilterBanner } from '../../components/PropertyFilterBanner';
+import { ExportMenu } from '../../components/ExportMenu';
+import { Banner } from '../../components/Banner';
+import { useProperty } from '../../contexts/PropertyContext';
+import { exportApi } from '../../lib/api';
 import type { Room, Tenant, Payment, Expense, KitchenItem } from '../../types/database';
 
 export default function Dashboard() {
+  const { selectedPropertyId, selectedProperty } = useProperty();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [kitchenItems, setKitchenItems] = useState<KitchenItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exportMsg, setExportMsg] = useState('');
+  const [exportErr, setExportErr] = useState('');
 
   const month = currentMonth();
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [selectedPropertyId]);
 
   async function loadData() {
     setLoading(true);
     try {
       const [roomsData, tenantsData, paymentsData, expensesData, kitchenData] = await Promise.all([
-        roomsApi.list(),
-        tenantsApi.list(),
-        paymentsApi.list(),
+        roomsApi.list(selectedPropertyId),
+        tenantsApi.list(selectedPropertyId),
+        paymentsApi.list(selectedPropertyId),
         expensesApi.list(),
         kitchenApi.listItems(),
       ]);
@@ -74,7 +82,31 @@ export default function Dashboard() {
 
   return (
     <StaffLayout>
-      <PageHeader title="Dashboard" subtitle={`Overview for ${month}`} />
+      <PageHeader
+        title="Dashboard"
+        subtitle={
+          selectedProperty
+            ? `Overview for ${month} — ${selectedProperty.name}`
+            : `Overview for ${month}`
+        }
+        action={
+          <ExportMenu
+            onExport={(format) => exportApi.payments(format, selectedPropertyId)}
+            onSuccess={(format) => {
+              setExportErr('');
+              setExportMsg(`Payments exported as ${format.toUpperCase()}.`);
+            }}
+            onError={(err) => {
+              setExportMsg('');
+              setExportErr(err.message);
+            }}
+          />
+        }
+      />
+
+      <PropertyFilterBanner />
+      {exportMsg && <Banner message={exportMsg} variant="success" onDismiss={() => setExportMsg('')} />}
+      {exportErr && <Banner message={exportErr} variant="error" onDismiss={() => setExportErr('')} />}
 
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 mb-6">
         <StatCard

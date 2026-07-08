@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { authApi, orgChoicesFromError, type OrgChoice } from '../../lib/api';
 
-export default function ForgotPassword() {
+export default function TenantForgotPassword() {
   const [email, setEmail] = useState('');
   const [orgChoices, setOrgChoices] = useState<OrgChoice[]>([]);
   const [selectedOrgId, setSelectedOrgId] = useState('');
@@ -16,7 +16,7 @@ export default function ForgotPassword() {
     setError('');
     setSuccess('');
     try {
-      await authApi.staffForgotPassword(email.trim(), selectedOrgId || undefined);
+      await authApi.tenantForgotPassword(email.trim(), selectedOrgId || undefined);
       setSuccess('If an account exists for that email, a reset link has been sent.');
       setOrgChoices([]);
     } catch (err) {
@@ -39,7 +39,7 @@ export default function ForgotPassword() {
           <h1 className="font-serif text-3xl font-semibold text-rose">Nivas</h1>
           <p className="text-ink-soft text-sm mt-1">Reset your password</p>
           <p className="text-ink-soft text-xs mt-3 max-w-sm mx-auto">
-            Enter the email you use to sign in. We will email you a link to set a new password.
+            Enter the email you use to sign in to the tenant portal.
           </p>
         </div>
 
@@ -79,7 +79,7 @@ export default function ForgotPassword() {
         </form>
 
         <div className="mt-6 pt-6 border-t border-border text-center">
-          <Link to="/login" className="text-sm text-ink-soft hover:text-rose">
+          <Link to="/tenant/login" className="text-sm text-ink-soft hover:text-rose">
             Back to sign in
           </Link>
         </div>
