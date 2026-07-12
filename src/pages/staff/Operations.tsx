@@ -5,6 +5,7 @@ import {
   maintenanceApi,
   visitorLogApi,
   tenantsApi,
+  staffApi,
 } from '../../lib/api';
 import { useProperty } from '../../contexts/PropertyContext';
 import { StaffLayout } from '../../components/Layout';
@@ -12,17 +13,21 @@ import { PropertyFilterBanner } from '../../components/PropertyFilterBanner';
 import { Modal, ConfirmDialog } from '../../components/Modal';
 import { PageHeader } from '../../components/ui';
 import { Banner } from '../../components/Banner';
+import { MaintenancePriorityBadge } from '../../components/MaintenancePriorityBadge';
 import { MaintenanceStatusBadge } from '../../components/MaintenanceStatusBadge';
 import { formatDate, formatDateTime } from '../../lib/utils';
 import {
   ANNOUNCEMENT_CATEGORIES,
   MAINTENANCE_STATUSES,
+  MAINTENANCE_PRIORITIES,
   type Announcement,
   type AnnouncementCategory,
   type MaintenanceRequest,
   type MaintenanceStatus,
+  type MaintenancePriority,
   type VisitorLogEntry,
   type Tenant,
+  type StaffProfile,
 } from '../../types/database';
 
 type Tab = 'notices' | 'maintenance' | 'visitors';
@@ -34,6 +39,7 @@ export default function Operations() {
   const [maintenance, setMaintenance] = useState<MaintenanceRequest[]>([]);
   const [visitors, setVisitors] = useState<VisitorLogEntry[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [staffMembers, setStaffMembers] = useState<StaffProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -50,7 +56,12 @@ export default function Operations() {
     title: '', body: '', category: 'general' as AnnouncementCategory,
     property_id: '', pinned: false, published: true, expires_at: '',
   });
-  const [maintForm, setMaintForm] = useState({ status: 'open' as MaintenanceStatus, staff_note: '' });
+  const [maintForm, setMaintForm] = useState({
+    status: 'open' as MaintenanceStatus,
+    priority: 'medium' as MaintenancePriority,
+    assigned_to: '',
+    staff_note: '',
+  });
   const [visitorForm, setVisitorForm] = useState({
     property_id: '', tenant_id: '', visitor_name: '', visitor_phone: '',
     purpose: '', id_type: 'Aadhaar', id_number: '', notes: '',
@@ -64,8 +75,14 @@ export default function Operations() {
       if (tab === 'notices') {
         setAnnouncements(await announcementsApi.list(selectedPropertyId));
       } else if (tab === 'maintenance') {
-        setMaintenance(await maintenanceApi.list(selectedPropertyId, statusFilter || undefined));
-        setTenants(await tenantsApi.list(selectedPropertyId));
+        const [items, tenantList, staffList] = await Promise.all([
+          maintenanceApi.list(selectedPropertyId, statusFilter || undefined),
+          tenantsApi.list(selectedPropertyId),
+          staffApi.list(),
+        ]);
+        setMaintenance(items);
+        setTenants(tenantList);
+        setStaffMembers(staffList);
       } else {
         setVisitors(await visitorLogApi.list(selectedPropertyId));
         const t = await tenantsApi.list(selectedPropertyId);
@@ -145,6 +162,8 @@ export default function Operations() {
     try {
       await maintenanceApi.update(maintOpen.id, {
         status: maintForm.status,
+        priority: maintForm.priority,
+        assigned_to: maintForm.assigned_to || null,
         staff_note: maintForm.staff_note.trim() || undefined,
       });
       setMaintOpen(null);
@@ -293,6 +312,8 @@ export default function Operations() {
                   <tr className="border-b border-border bg-cream/50">
                     <th className="text-left px-4 py-3 font-medium text-ink-soft">Tenant</th>
                     <th className="text-left px-4 py-3 font-medium text-ink-soft">Issue</th>
+                    <th className="text-left px-4 py-3 font-medium text-ink-soft">Priority</th>
+                    <th className="text-left px-4 py-3 font-medium text-ink-soft">Assignee</th>
                     <th className="text-left px-4 py-3 font-medium text-ink-soft">Status</th>
                     <th className="text-left px-4 py-3 font-medium text-ink-soft">Date</th>
                     <th className="text-right px-4 py-3 font-medium text-ink-soft"></th>
@@ -309,6 +330,8 @@ export default function Operations() {
                         <p className="font-medium">{m.title}</p>
                         <p className="text-xs text-ink-soft line-clamp-2">{m.description}</p>
                       </td>
+                      <td className="px-4 py-3"><MaintenancePriorityBadge priority={m.priority} /></td>
+                      <td className="px-4 py-3 text-xs text-ink-soft">{m.assigned_to_name ?? '—'}</td>
                       <td className="px-4 py-3"><MaintenanceStatusBadge status={m.status} /></td>
                       <td className="px-4 py-3 text-ink-soft text-xs">{formatDate(m.created_at)}</td>
                       <td className="px-4 py-3 text-right">
@@ -316,7 +339,12 @@ export default function Operations() {
                           className="btn-ghost text-sm"
                           onClick={() => {
                             setMaintOpen(m);
-                            setMaintForm({ status: m.status, staff_note: m.staff_note ?? '' });
+                            setMaintForm({
+                              status: m.status,
+                              priority: m.priority,
+                              assigned_to: m.assigned_to ?? '',
+                              staff_note: m.staff_note ?? '',
+                            });
                           }}
                         >
                           Update
@@ -457,6 +485,25 @@ export default function Operations() {
         {maintOpen && (
           <form onSubmit={handleUpdateMaintenance} className="space-y-4">
             <p className="text-sm text-ink-soft">{maintOpen.title} — {maintOpen.tenant_name}</p>
+            <div>
+              <label className="label">Priority</label>
+              <select className="input" value={maintForm.priority}
+                onChange={(e) => setMaintForm({ ...maintForm, priority: e.target.value as MaintenancePriority })}>
+                {MAINTENANCE_PRIORITIES.map((p) => (
+                  <option key={p.value} value={p.value}>{p.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">Assigned to</label>
+              <select className="input" value={maintForm.assigned_to}
+                onChange={(e) => setMaintForm({ ...maintForm, assigned_to: e.target.value })}>
+                <option value="">Unassigned</option>
+                {staffMembers.map((s) => (
+                  <option key={s.id} value={s.id}>{s.full_name ?? s.email}</option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className="label">Status</label>
               <select className="input" value={maintForm.status}

@@ -539,7 +539,12 @@ export const maintenanceApi = {
     if (status) path += `${path.includes('?') ? '&' : '?'}status=${status}`;
     return request<MaintenanceRequest[]>(path);
   },
-  update: (id: string, data: { status: string; staff_note?: string }) =>
+  update: (id: string, data: {
+    status: string;
+    priority?: string;
+    assigned_to?: string | null;
+    staff_note?: string;
+  }) =>
     request<MaintenanceRequest>(`/maintenance-requests/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),

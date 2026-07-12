@@ -243,6 +243,7 @@ export interface Announcement {
 
 export type MaintenanceCategory = 'electrical' | 'plumbing' | 'wifi' | 'cleaning' | 'other';
 export type MaintenanceStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
+export type MaintenancePriority = 'low' | 'medium' | 'high' | 'urgent';
 
 export interface MaintenanceRequest {
   id: string;
@@ -254,6 +255,9 @@ export interface MaintenanceRequest {
   title: string;
   description: string;
   status: MaintenanceStatus;
+  priority: MaintenancePriority;
+  assigned_to: string | null;
+  assigned_to_name?: string | null;
   staff_note: string | null;
   resolved_at: string | null;
   created_at: string;
@@ -300,4 +304,11 @@ export const MAINTENANCE_STATUSES: { value: MaintenanceStatus; label: string }[]
   { value: 'in_progress', label: 'In Progress' },
   { value: 'resolved', label: 'Resolved' },
   { value: 'closed', label: 'Closed' },
+];
+
+export const MAINTENANCE_PRIORITIES: { value: MaintenancePriority; label: string }[] = [
+  { value: 'urgent', label: 'Urgent' },
+  { value: 'high', label: 'High' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'low', label: 'Low' },
 ];
